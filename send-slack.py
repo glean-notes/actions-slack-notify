@@ -38,6 +38,7 @@ def main():
 
     slack_channel = os.environ["SLACK_CHANNEL"]
     message_content = os.environ["MESSAGE_CONTENT"].replace(r"\n", "\n")
+    image_path = os.getenv("IMAGE_PATH", None)
     pipeline_name = os.environ["PIPELINE_NAME"]
     slack_bot_token = os.environ["SLACK_BOT_TOKEN"]
     slack_icon = os.getenv(
@@ -54,15 +55,21 @@ def main():
             next_cursor = fetch_channels(client, next_cursor)["response_metadata"]["next_cursor"]
 
         channel_id = channels_list[slack_channel]
-
-        # Send the slack message, if it fails an exception will fire
-        client.chat_postMessage(
-            channel=channel_id,
-            text=message_content,
-            username=pipeline_name,
-            icon_url=slack_icon,
-        )
-        print("Message sent.")
+        if not image_path:
+            # Send the slack message, if it fails an exception will fire
+            client.chat_postMessage(
+                channel=channel_id,
+                text=message_content,
+                username=pipeline_name,
+                icon_url=slack_icon,
+            )
+            print("Message sent.")
+        else:
+            client.files_upload(
+                file=image_path,
+                inital_comment=message_content,
+                channels=channel_id,
+            )
     except SlackApiError as e:
         print(f"Error posting message: {e}")
         sys.exit(1)

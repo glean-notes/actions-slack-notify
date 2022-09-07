@@ -65,11 +65,17 @@ def main():
             )
             print("Message sent.")
         else:
+            client.chat_postMessage(
+                channel=channel_id,
+                text=message_content,
+                username=pipeline_name,
+                icon_url=slack_icon,
+            )
             client.files_upload(
                 file=image_path,
-                inital_comment=message_content,
                 channels=channel_id,
             )
+            print("Message sent.")
     except SlackApiError as e:
         print(f"Error posting message: {e}")
         sys.exit(1)

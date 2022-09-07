@@ -61,6 +61,8 @@ def main():
             text=message_content,
             username=pipeline_name,
             icon_url=slack_icon,
+            unfurl_links=True,
+            unfurl_media=True,
         )
         print("Message sent.")
     except SlackApiError as e:

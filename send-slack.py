@@ -59,6 +59,7 @@ def main():
         client.chat_postMessage(
             channel=channel_id,
             text=message_content,
+            attachments=[{"image_url": os.getenv("IMAGE_URL", "")}],
             username=pipeline_name,
             icon_url=slack_icon,
             unfurl_links=True,

@@ -58,8 +58,7 @@ def main():
         # Send the slack message, if it fails an exception will fire
         client.chat_postMessage(
             channel=channel_id,
-            text=message_content,
-            attachments=[{"image_url": os.getenv("IMAGE_URL", "")}],
+            attachments=[{"text": message_content, "image_url": os.getenv("IMAGE_URL", "")}],
             username=pipeline_name,
             icon_url=slack_icon,
             unfurl_links=True,

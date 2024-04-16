@@ -2,6 +2,7 @@ from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 import os
 import sys
+import urllib.request
 
 channels_list = {}
 
@@ -58,12 +59,27 @@ def main():
         # Send the slack message, if it fails an exception will fire
         client.chat_postMessage(
             channel=channel_id,
-            attachments=[{"text": message_content, "image_url": os.getenv("IMAGE_URL", "")}],
+            text=message_content,
             username=pipeline_name,
             icon_url=slack_icon,
             unfurl_links=True,
             unfurl_media=True,
         )
+
+        image_path = os.getenv("IMAGE_PATH")
+        if image_path:
+            with open(image_path, "rb") as f:
+                data = f.read()
+                print("Getting upload URL")
+                upload_response = client.files_getUploadURLExternal(filename="image", length=len(data))
+                print("Uploading image")
+                request = urllib.request.Request(url=upload_response["upload_url"], data=data, method="POST")
+                urllib.request.urlopen(request)
+                print("Completing upload")
+                client.files_completeUploadExternal(
+                    files=[{"id": upload_response["file_id"], "title": "image"}],
+                    channel_id=channel_id,
+                )
         print("Message sent.")
     except SlackApiError as e:
         print(f"Error posting message: {e}")

@@ -68,9 +68,6 @@ def main():
 
         image_path = os.getenv("IMAGE_PATH")
         if image_path:
-            print("Downloading image")
-            response = urllib.request.urlopen(image_path)
-            data = response.read()
             print("Getting upload URL")
             upload_response = client.files_getUploadURLExternal(filename="image", length=len(data))
             print("Uploading image")

@@ -3,23 +3,68 @@ from slack_sdk.errors import SlackApiError
 import os
 import sys
 import urllib.request
+import redis
+import time
+
+DEFAULT_REDIS_EXPIRE = 604800  # 7 days
 
 channels_list = {}
 
 
-def fetch_channels(client: WebClient, next_cursor: str = ""):
+def redis_instance() -> redis.client.Redis:
+    return redis.Redis(host=os.getenv("REDIS_HOST", "redis-master.redis"), port=6379, decode_responses=True)  # type: ignore
+
+
+def update_redis_slack_channel_cache(redis_client: redis.client.Redis, channel_name: str, channel_id: str):
+    redis_client.hset("slack_channel_ids", channel_id, channel_name)
+    redis_client.hset("slack_channel_ids", channel_name, channel_id)
+
+
+def get_channel_id_from_redis(redis_client: redis.client.Redis, slack_channel_id: str):
+    # TODO unbreak
+    return redis_client.hget("slack_channel_ids", slack_channel_id + "somethingelse")
+
+
+def fetch_channels(
+    slack_client: WebClient,
+    next_cursor: str = "",
+):
     try:
-        result = client.conversations_list(
+        result = slack_client.conversations_list(
             exclude_archived=True,
             limit=500,
             types="public_channel,private_channel",
             cursor=next_cursor,
         )
-        for channel in result["channels"]:
-            channels_list[channel["name"]] = channel["id"]
-        return result
+        time.sleep(0.5)
+
+        return result["response_metadata"]["next_cursor"], result["channels"]
     except SlackApiError as e:
         print(f"Slack error: {e}")
+
+
+def get_channel_id_from_slack(slack_client: WebClient, redis_client: redis.client.Redis, channel_name: str):
+    next_cursor = ""
+    while True:
+        next_cursor, channels = fetch_channels(slack_client, next_cursor)
+        for channel in channels:
+            update_redis_slack_channel_cache(redis_client, channel["name"], channel["id"])
+            if channel["name"] == channel_name:
+                return channel["id"]
+
+        if not next_cursor:
+            print("End of conversation list and not found channel. Does the channel exist? Breaking.")
+            break
+
+
+def get_slack_channel_id(slack_client: WebClient, redis_client: redis.client.Redis, channel_id: str):
+    redis_client = redis_instance()
+    slack_channel = get_channel_id_from_redis(redis_client, channel_id)
+
+    if not slack_channel:
+        slack_channel = get_channel_id_from_slack(slack_client, redis_client, channel_id)
+
+    return slack_channel
 
 
 def validate_vars():
@@ -47,17 +92,11 @@ def main():
     )
 
     try:
-        client = WebClient(token=slack_bot_token)
-
-        # Get the channel ID from the name
-        next_cursor = fetch_channels(client)["response_metadata"]["next_cursor"]
-        while next_cursor:
-            next_cursor = fetch_channels(client, next_cursor)["response_metadata"]["next_cursor"]
-
-        channel_id = channels_list[slack_channel]
+        slack_client = WebClient(token=slack_bot_token)
+        channel_id = get_slack_channel_id(slack_client, redis_instance(), slack_channel)
 
         # Send the slack message, if it fails an exception will fire
-        client.chat_postMessage(
+        slack_client.chat_postMessage(
             channel=channel_id,
             text=message_content,
             username=pipeline_name,
@@ -71,12 +110,12 @@ def main():
             with open(image_path, "rb") as f:
                 data = f.read()
                 print("Getting upload URL")
-                upload_response = client.files_getUploadURLExternal(filename="image", length=len(data))
+                upload_response = slack_client.files_getUploadURLExternal(filename="image", length=len(data))
                 print("Uploading image")
                 request = urllib.request.Request(url=upload_response["upload_url"], data=data, method="POST")
                 urllib.request.urlopen(request)
                 print("Completing upload")
-                client.files_completeUploadExternal(
+                slack_client.files_completeUploadExternal(
                     files=[{"id": upload_response["file_id"], "title": "image"}],
                     channel_id=channel_id,
                 )

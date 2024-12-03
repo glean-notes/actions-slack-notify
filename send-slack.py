@@ -21,8 +21,7 @@ def update_redis_slack_channel_cache(redis_client: redis.client.Redis, channel_n
 
 
 def get_channel_id_from_redis(redis_client: redis.client.Redis, slack_channel_id: str):
-    # TODO unbreak
-    return redis_client.hget("slack_channel_ids", slack_channel_id + "somethingelse")
+    return redis_client.hget("slack_channel_ids", slack_channel_id)
 
 
 def fetch_channels(
@@ -57,9 +56,13 @@ def get_channel_id_from_slack(slack_client: WebClient, redis_client: redis.clien
             break
 
 
-def get_slack_channel_id(slack_client: WebClient, redis_client: redis.client.Redis, channel_id: str):
-    redis_client = redis_instance()
-    slack_channel = get_channel_id_from_redis(redis_client, channel_id)
+def get_slack_channel_id(slack_client: WebClient, channel_id: str):
+    try:
+        redis_client = redis_instance()
+        slack_channel = get_channel_id_from_redis(redis_client, channel_id)
+    except Exception as e:
+        print("Unable to get channel from redis. Fetching from slack.")
+        print(e)
 
     if not slack_channel:
         slack_channel = get_channel_id_from_slack(slack_client, redis_client, channel_id)
@@ -93,7 +96,7 @@ def main():
 
     try:
         slack_client = WebClient(token=slack_bot_token)
-        channel_id = get_slack_channel_id(slack_client, redis_instance(), slack_channel)
+        channel_id = get_slack_channel_id(slack_client, slack_channel)
 
         # Send the slack message, if it fails an exception will fire
         slack_client.chat_postMessage(

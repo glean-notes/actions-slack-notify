@@ -57,6 +57,7 @@ def get_channel_id_from_slack(slack_client: WebClient, redis_client: redis.clien
 
 
 def get_slack_channel_id(slack_client: WebClient, channel_id: str):
+    slack_channel = None
     try:
         redis_client = redis_instance()
         slack_channel = get_channel_id_from_redis(redis_client, channel_id)

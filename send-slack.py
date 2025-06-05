@@ -47,7 +47,10 @@ def get_channel_id_from_slack(slack_client: WebClient, redis_client: redis.clien
     while True:
         next_cursor, channels = fetch_channels(slack_client, next_cursor)
         for channel in channels:
-            update_redis_slack_channel_cache(redis_client, channel["name"], channel["id"])
+            try:
+                update_redis_slack_channel_cache(redis_client, channel["name"], channel["id"])
+            except Exception as e:
+                print(f"Error updating Redis cache: {e}")
             if channel["name"] == channel_name:
                 return channel["id"]
 
